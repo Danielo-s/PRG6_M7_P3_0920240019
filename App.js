@@ -1,20 +1,65 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { MaterialIcons } from "@expo/vector-icons";
 
-export default function App() {
+import HomeScreen from "./pages/HomeScreen";
+import DetailScreen from "./pages/DetailScreen";
+import HistoryScreen from "./pages/HistoryScreen";
+import AboutScreen from "./pages/AboutScreen";
+
+const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+
+function HistoryStack() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <Stack.Navigator>
+      <Stack.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{ title: "Riwayat Presensi" }}
+      />
+      <Stack.Screen
+        name="Detail"
+        component={DetailScreen}
+        options={{ title: "Detail Informasi" }}
+      />
+    </Stack.Navigator>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+      <NavigationContainer>
+        <Tab.Navigator screenOptions={{ tabBarActiveTintColor: "#0056a0", headerShown: false }} >
+          <Tab.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{
+              tabBarLabel: "Beranda",
+              tabBarIcon: ({ color }) => <MaterialIcons name="home" size={24} color={color} />
+            }}
+          />
+          <Tab.Screen
+            name="HistoryTab"
+            component={HistoryStack}
+            options={{
+              tabBarLabel: "Riwayat",
+              tabBarIcon: ({ color }) => <MaterialIcons name="history" size={24} color={color} />
+            }}
+          />
+          <Tab.Screen
+            name="AboutTab"
+            component={AboutScreen}
+            options={{
+              tabBarLabel: "Tentang",
+              tabBarIcon: ({ color }) => <MaterialIcons name="info" size={24} color={color} />
+            }}
+          />
+        </Tab.Navigator>
+      </NavigationContainer>
+  );
+}
+
+
