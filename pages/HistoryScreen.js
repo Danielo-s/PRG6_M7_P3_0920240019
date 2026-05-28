@@ -17,7 +17,7 @@ export default function HistoryScreen({ navigation }) {
   const [page, setPage] = useState(0);
   const [isLastPage, setIsLastPage] = useState(false);
 
-  const BASE_URL = "http://10.1.10.67:8080/api/presensiapi";
+  const BASE_URL = "http://10.1.10.67:8080/api/presensi";
 
   // FUNGSI GET API DENGAN PAGINATION
   const fetchAttendanceData = async (targetPage = 0) => {

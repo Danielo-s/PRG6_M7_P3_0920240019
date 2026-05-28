@@ -12,7 +12,7 @@ export default function HomeScreen() {
   const [isScanning, setIsScanning] = useState(true);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
 
-  const BASE_URL = "http://10.1.10.67:8080/api/presensiapi";
+  const BASE_URL = "http://10.1.10.67:8080/api/presensi";
 
   if (!permission) {
     return (
