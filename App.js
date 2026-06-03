@@ -9,6 +9,7 @@ import DetailScreen from "./pages/DetailScreen";
 import HistoryScreen from "./pages/HistoryScreen";
 import AboutScreen from "./pages/AboutScreen";
 import LocationScreen from "./pages/LocationScreen";
+import { AuthProvider } from "./context/AuthContext";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -32,6 +33,7 @@ function HistoryStack() {
 
 export default function App() {
   return (
+    <AuthProvider>
       <NavigationContainer>
         <Tab.Navigator screenOptions={{ tabBarActiveTintColor: "#0056a0", headerShown: false }} >
           <Tab.Screen
@@ -58,19 +60,16 @@ export default function App() {
               tabBarIcon: ({ color }) => <MaterialIcons name="info" size={24} color={color} />
             }}
           />
-          <Tab.Screen
-            name="Location"
-            component={LocationScreen}
-            options={{
-              tabBarLabel: "Lokasi",
-              tabBarIcon: ({ color }) => (
-                <MaterialIcons name="location-on" size={24} color={color} />
-              ),
-            }}
-          />
+         <Tab.Screen
+          name="Location"
+          component={LocationScreen}
+          options={{
+            tabBarLabel: "Lokasi",
+            tabBarIcon: ({ color }) => <MaterialIcons name="location-on" size={24} color={color} />,
+          }}
+        />
         </Tab.Navigator>
       </NavigationContainer>
+    </AuthProvider>
   );
 }
-
-

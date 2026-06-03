@@ -5,21 +5,21 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { AuthContext } from "../context/AuthContext";
 
 export default function HistoryScreen({ navigation }) {
-  const { userData } = useContext(AuthContext);
+  const { userData } = useContext(AuthContext); 
 
   const [historyData, setHistoryData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Pagination State 
+
   const [page, setPage] = useState(0);
   const [isLastPage, setIsLastPage] = useState(false);
 
   const BASE_URL = "http://10.1.10.67:8080/api/presensi";
 
-  // FUNGSI GET API DENGAN PAGINATION
   const fetchAttendanceData = async (targetPage = 0) => {
     if (isLoading || (isLastPage && targetPage !== 0)) return;
 

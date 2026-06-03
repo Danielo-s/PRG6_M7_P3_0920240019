@@ -1,51 +1,100 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Button } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Button,
+  ActivityIndicator,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+
+import { MaterialIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location'; 
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [permission, requestPermission] = useCameraPermissions();
-
   const [scannedData, setScannedData] = useState(null);
-  
   const [isScanning, setIsScanning] = useState(true);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('checking'); 
+  const [distance, setDistance] = useState(0);
+
+  const KAMPUS_LAT = -6.346000;
+  const KAMPUS_LON = 107.149000;
+  const MAKSIMAL_JARAK_METER = 250; 
 
   const BASE_URL = "http://10.1.10.67:8080/api/presensi";
 
-  if (!permission) {
-    return (
-      <View style={styles.container}>
-        <Text>Memuat perizinan kamera ...</Text>
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (permission && permission.granted) {
+      verifyLocation();
+    }
+  }, [permission]);
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3;
+    const p1 = lat1 * Math.PI / 180;
+    const p2 = lat2 * Math.PI / 180;
+    const deltaP = (lat2 - lat1) * Math.PI / 180;
+    const deltaLon = (lon2 - lon1) * Math.PI / 180;
 
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.infoText}>
-          Aplikasi butuh akses kamera untuk memindai QR Code Presensi Dosen!
-        </Text>
-        <TouchableOpacity style={styles.buttonRequest} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Aktifkan Kamera</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+    const a =
+      Math.sin(deltaP / 2) * Math.sin(deltaP / 2) +
+      Math.cos(p1) * Math.cos(p2) *
+      Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
+    return R * c;
+  };
+
+  // 4. FUNGSI VERIFIKASI LOKASI MAHASISWA
+  const verifyLocation = async () => {
+    setLocationStatus('checking');
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Akses Ditolak', 'Izin lokasi wajib diberikan untuk presensi.');
+        setLocationStatus('error');
+        return;
+      }
+
+      let currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const jarakMeter = calculateDistance(
+        currentLocation.coords.latitude,
+        currentLocation.coords.longitude,
+        KAMPUS_LAT,
+        KAMPUS_LON
+      );
+
+      setDistance(Math.round(jarakMeter));
+
+      if (jarakMeter <= MAKSIMAL_JARAK_METER) {
+        setLocationStatus('valid');
+      } else {
+        setLocationStatus('invalid');
+      }
+    } catch (error) {
+      Alert.alert("Error Lokasi", "Gagal mengunci posisi satelit GPS Anda.");
+      setLocationStatus('error');
+    }
+  };
   const handleBarCodeScanned = ({ type, data }) => {
     if (!isScanning) return;
-
     setIsScanning(false);
+
     try {
       const qrData = JSON.parse(data);
       setScannedData(qrData);
 
       Alert.alert(
         "QR Code Terdeteksi",
-        `Mata Kuliah: ${qrData.kodeMk}\nPertemuan: ${qrData.pertemuanKe}\nRuangan: ${qrData.ruangan}\n\nLanjutkan Presensi (Check-In)?`,
+        `Mata Kuliah: ${qrData.kodeMk}\nPertemuan: ${qrData.pertemuanKe}\nRuangan: ${qrData.ruangan}\n\nLanjutkan Presensi?`,
         [
           {
             text: "Batal",
@@ -53,12 +102,12 @@ export default function HomeScreen() {
               setIsScanning(true);
               setScannedData(null);
             },
-            style: "cancel"
+            style: "cancel",
           },
           {
             text: "Ya, Check In",
-            onPress: () => handleSubmitPresensi(qrData)
-          }
+            onPress: () => handleSubmitPresensi(qrData),
+          },
         ]
       );
     } catch (error) {
@@ -70,22 +119,19 @@ export default function HomeScreen() {
   const handleSubmitPresensi = async (qrData) => {
     const payload = {
       kodeMk: qrData.kodeMk,
-      nimMhs: "0325260031", 
+      nimMhs: "0325260031",
       pertemuanKe: qrData.pertemuanKe,
       date: new Date().toISOString().split('T')[0],
       jamPresensi: new Date().toLocaleTimeString('en-GB'),
       status: "Present",
-      ruangan: qrData.ruangan
+      ruangan: qrData.ruangan,
     };
 
     try {
       const response = await fetch(BASE_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -93,85 +139,157 @@ export default function HomeScreen() {
       if (response.ok) {
         setIsCheckedIn(true);
         Alert.alert("Berhasil!", "Presensi sukses dicatat ke Database.", [
-          { text: "Lihat Riwayat", onPress: () => navigation.navigate('HistoryTab') }
+          { text: "Lihat Riwayat", onPress: () => navigation.navigate('HistoryTab') },
         ]);
       } else {
         Alert.alert("Gagal", result.message || "Terjadi kesalahan di server.");
       }
     } catch (error) {
-      Alert.alert("Error Jaringan", "Pastikan IP Laptop benar dan API berjalan.");
-      console.error(error);
+      Alert.alert("Error Jaringan", "Pastikan IP Server benar dan Backend berjalan.");
     } finally {
-      // Reset state agar siap untuk presensi selanjutnya
       setIsScanning(true);
       setScannedData(null);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <CameraView
-        style={StyleSheet.absoluteFillObject}  
-        facing="back"  
-        onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
-        barCodeScannerSettings={{
-          barCodeTypes: ["qr"],  
-        }}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.unfocusedContainer}></View>
+  if (!permission) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.infoText}>Aplikasi butuh akses kamera untuk memindai QR!</Text>
+        <TouchableOpacity style={styles.buttonRequest} onPress={requestPermission}>
+          <Text style={styles.buttonText}>Aktifkan Kamera</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (locationStatus === 'checking') {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0056b3" />
+        <Text style={styles.loadingText}>Memverifikasi Lokasi Anda...</Text>
+        <Text style={{ color: 'gray', marginTop: 10 }}>
+          Pastikan Anda berada di area Kampus.
+        </Text>
+      </View>
+    );
+  }
+
+  if (locationStatus === 'invalid') {
+    return (
+      <View style={styles.centerContainer}>
+        <MaterialIcons name="block" size={80} color="#dc3545" style={{ marginBottom: 15 }} />
+        <Text style={styles.errorTitle}>Akses Ditolak</Text>
+        <Text style={styles.errorSubtitle}>
+          Anda terdeteksi berada {distance} meter dari titik kampus.{"\n"}
+          Maksimal jarak yang diizinkan adalah {MAKSIMAL_JARAK_METER} meter.
+        </Text>
+        <TouchableOpacity style={styles.buttonRequest} onPress={verifyLocation}>
+          <Text style={styles.buttonText}>Cek Ulang Lokasi</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (locationStatus === 'valid') {
+    return (
+      <View style={styles.container}>
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
+          barCodeScannerSettings={{ barCodeTypes: ["qr"] }}
+        />
+
+        <View style={[styles.overlay, StyleSheet.absoluteFillObject]}>
+          <View style={styles.unfocusedContainer}>
+            <View style={styles.validLocationBadge}>
+              <MaterialIcons
+                name="check-circle"
+                size={18}
+                color="white"
+                style={{ marginRight: 5 }}
+              />
+              <Text style={styles.validLocationText}>Lokasi Valid ({distance}m)</Text>
+            </View>
+          </View>
+
           <View style={styles.focusedContainer}>
             <View style={styles.borderCornerTopLeft} />
             <View style={styles.borderCornerTopRight} />
             <View style={styles.borderCornerBottomLeft} />
             <View style={styles.borderCornerBottomRight} />
           </View>
+
           <View style={styles.unfocusedContainer}>
             <Text style={styles.scanText}>Arahkan Kamera ke QR Code Dosen</Text>
             {!isScanning && (
-              <Button title="Scan Lagi" onPress={() => setIsScanning(true)} color="#ffc107" />
+              <Button
+                title="Scan Lagi"
+                onPress={() => setIsScanning(true)}
+                color="#ffc107"
+              />
             )}
           </View>
         </View>
-      </CameraView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.centerContainer}>
+      <MaterialIcons name="gps-off" size={60} color="#dc3545" />
+      <Text style={styles.infoText}>Gagal mendapatkan lokasi GPS.</Text>
+      <TouchableOpacity style={styles.buttonRequest} onPress={verifyLocation}>
+        <Text style={styles.buttonText}>Coba Lagi</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
- 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: 'black' },
+  centerContainer: {
     flex: 1,
-    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f4f6f9',
+    padding: 20,
   },
-  infoText: {
-    color: 'white',
-    textAlign: 'center',
-    margin: 30,
-    fontSize: 16,
-  },
+  loadingText: { marginTop: 20, fontSize: 18, fontWeight: 'bold', color: '#333' },
+  infoText: { color: '#333', textAlign: 'center', margin: 30, fontSize: 16 },
   buttonRequest: {
     backgroundColor: '#0056b3',
     padding: 15,
     borderRadius: 10,
     alignSelf: 'center',
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',  
-  },
-  unfocusedContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    marginTop: 20,
+    width: '80%',
     alignItems: 'center',
   },
+  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+
+  // Styling Error Lokasi
+  emojiError: { fontSize: 60, marginBottom: 10 },
+  errorTitle: { fontSize: 24, fontWeight: 'bold', color: '#dc3545', marginBottom: 10 },
+  errorSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#666',
+    lineHeight: 24,
+  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  unfocusedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   focusedContainer: {
-    width: 250,  
+    width: 250,
     height: 250,
     alignSelf: 'center',
     backgroundColor: 'transparent',
@@ -186,6 +304,19 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
   },
+
+  validLocationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(40, 167, 69, 0.9)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 30,
+  },
+  validLocationText: { color: 'white', fontWeight: 'bold' },
+
+  // Membuat Sudut Kotak Biru
   borderCornerTopLeft: {
     position: 'absolute', top: 0, left: 0, width: 40, height: 40,
     borderTopWidth: 5, borderLeftWidth: 5, borderColor: '#007bff',
@@ -201,5 +332,5 @@ const styles = StyleSheet.create({
   borderCornerBottomRight: {
     position: 'absolute', bottom: 0, right: 0, width: 40, height: 40,
     borderBottomWidth: 5, borderRightWidth: 5, borderColor: '#007bff',
-  }
+  },
 });
